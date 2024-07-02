@@ -14,6 +14,7 @@ usage: unicode [options] name_string...
    Options:
        -f <name>   Name of UnicodeData.txt file.
        -l          Long output.
+       -L          Complete output.
        -p <fields> Print only listed fields (from $all_fnames).
 _EOF_
 
@@ -21,9 +22,9 @@ exit (main() ? 0 : 1);
 
 sub main {
     my %opt;
-    die $usage if not getopts("f:lp:", \%opt);
+    die $usage if not getopts("f:lLp:", \%opt);
     my $file = ($opt{f} or progdir()."UnicodeData.txt");
-    my $prt = $opt{p} ? $opt{p} : $opt{l} ? "utf8,".$all_fnames : "*SHORT";
+    my $prt = $opt{p} ? $opt{p} : $opt{L} ? "char,utf8,".$all_fnames : $opt{l} ? "char,name,codept,utf8" : "*SHORT";
 
     my $ufile = read_unicode_file($file);
     return 0 if not $ufile;
@@ -86,14 +87,14 @@ sub should_print_field {
 
 sub print_glyph {
     my ($glyph, $prt) = @_;
+    my $utf8 = glyph_utf8($glyph);
     if ($prt eq "*SHORT") {
-        my $utf8 = glyph_utf8($glyph);
         printf "  %s  %5s  %s  %s\n", $utf8, $glyph->{codept}, bytes($utf8, 4), $glyph->{name};
         return;
     }
     foreach my $fname (split /,/, $prt) {
         if (should_print_field($fname, $prt)) {
-            my $val = ($fname eq "utf8") ? glyph_utf8($glyph) : $glyph->{$fname};
+            my $val = ($fname eq "char") ? $utf8 : ($fname eq "utf8") ? bytes($utf8, length($utf8)) : $glyph->{$fname};
             printf "%-8s %s\n", $fname, $val if length($val) > 0;
         }
     }
