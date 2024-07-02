@@ -10,6 +10,7 @@ usage: unicode [options] name_string...
        Prints the glyph for U+XXXX.
 _EOF_
 
+# All fields in UnicodeData.txt, in the order they appear in each line.
 my $all_fnames = "codept,name,cat,comb,bidi,decomp,decval,digval,numval,mirror,oldname,cmt,ucmap,lcmap,titmap";
 
 exit (main() ? 0 : 1);
@@ -22,8 +23,7 @@ sub main {
 
 	my $ufile = read_unicode_file($file);
 	return 0 if not $ufile;
-	my $r = search_unicode_file($ufile, $prt, @ARGV);
-	return $r;
+	return search_unicode_file($ufile, $prt, @ARGV);
 }
 
 sub read_unicode_file {
@@ -36,12 +36,11 @@ sub read_unicode_file {
 	my @ufile;
 	while (<$fd>) {
 		chomp;
-		my @f = split /;/;
+		my @fields = split /;/;
 		my %glyph;
 		my $index = 0;
 		foreach my $fname (split /,/, $all_fnames) {
-			$glyph{$fname} = $f[$index];
-			++$index;
+			$glyph{$fname} = $fields[$index++];
 		}
 		push @ufile, \%glyph;
 	}
@@ -84,7 +83,8 @@ sub should_print_field {
 sub print_glyph {
 	my ($glyph, $prt) = @_;
 	if ($prt eq "*SHORT") {
-		printf "  %s  %5s  %s\n", glyph_utf8($glyph), $glyph->{codept}, $glyph->{name};
+		my $utf8 = glyph_utf8($glyph);
+		printf "  %s  %5s  %s  %s\n", $utf8, $glyph->{codept}, bytes($utf8, 4), $glyph->{name};
 		return;
 	}
 	foreach my $fname (split /,/, $prt) {
@@ -99,4 +99,15 @@ sub print_glyph {
 sub glyph_utf8 {
 	my ($glyph) = @_;
 	return encode("UTF-8", chr(hex($glyph->{codept})));
+}
+
+sub bytes {
+	my ($s, $n) = @_;
+	my $r = '';
+	for (my $i = 0; $i < $n; ++$i) {
+		my $b = $i < length($s) ? sprintf("%02x", ord(substr($s,$i,1))) : "  ";
+		$r .= $b;
+		$r .= " " if $i+1 < $n;
+	}
+	return $r;
 }
