@@ -18,7 +18,7 @@ exit (main() ? 0 : 1);
 sub main {
 	my %opt;
 	die $usage if not getopts("f:lp:", \%opt);
-	my $file = ($opt{f} or "UnicodeData.txt");
+	my $file = ($opt{f} or progdir()."UnicodeData.txt");
 	my $prt = $opt{p} ? $opt{p} : $opt{l} ? "utf8,".$all_fnames : "*SHORT";
 
 	my $ufile = read_unicode_file($file);
@@ -110,4 +110,10 @@ sub bytes {
 		$r .= " " if $i+1 < $n;
 	}
 	return $r;
+}
+
+sub progdir {
+	my ($dir) = $0 =~ m|^(.*/)[^/]*$|;
+	$dir = "./" if length($dir) == 0;
+	return $dir;
 }
