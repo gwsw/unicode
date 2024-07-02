@@ -3,117 +3,121 @@ use strict;
 use Getopt::Std;
 use Encode;
 
+# All fields in UnicodeData.txt, in the order they appear in each line.
+my $all_fnames = "codept,name,cat,comb,bidi,decomp,decval,digval,numval,mirror,oldname,cmt,ucmap,lcmap,titmap";
+
 my $usage = <<_EOF_;
 usage: unicode [options] name_string...
        Prints all glyphs whose name matches all name_strings.
    or: unicode [options] U+XXXX
        Prints the glyph for U+XXXX.
+   Options:
+       -f <name>   Name of UnicodeData.txt file.
+       -l          Long output.
+       -p <fields> Print only listed fields (from $all_fnames).
 _EOF_
-
-# All fields in UnicodeData.txt, in the order they appear in each line.
-my $all_fnames = "codept,name,cat,comb,bidi,decomp,decval,digval,numval,mirror,oldname,cmt,ucmap,lcmap,titmap";
 
 exit (main() ? 0 : 1);
 
 sub main {
-	my %opt;
-	die $usage if not getopts("f:lp:", \%opt);
-	my $file = ($opt{f} or progdir()."UnicodeData.txt");
-	my $prt = $opt{p} ? $opt{p} : $opt{l} ? "utf8,".$all_fnames : "*SHORT";
+    my %opt;
+    die $usage if not getopts("f:lp:", \%opt);
+    my $file = ($opt{f} or progdir()."UnicodeData.txt");
+    my $prt = $opt{p} ? $opt{p} : $opt{l} ? "utf8,".$all_fnames : "*SHORT";
 
-	my $ufile = read_unicode_file($file);
-	return 0 if not $ufile;
-	return search_unicode_file($ufile, $prt, @ARGV);
+    my $ufile = read_unicode_file($file);
+    return 0 if not $ufile;
+    return search_unicode_file($ufile, $prt, @ARGV);
 }
 
 sub read_unicode_file {
-	my ($file) = @_;
-	my $fd;
-	if (not open($fd, '<', $file)) {
-		print "cannot open $file: $!";
-		return undef;
-	}
-	my @ufile;
-	while (<$fd>) {
-		chomp;
-		my @fields = split /;/;
-		my %glyph;
-		my $index = 0;
-		foreach my $fname (split /,/, $all_fnames) {
-			$glyph{$fname} = $fields[$index++];
-		}
-		push @ufile, \%glyph;
-	}
-	close $fd;
-	my %ufile = ( 'ufile' => \@ufile );
-	return \%ufile;
+    my ($file) = @_;
+    my $fd;
+    if (not open($fd, '<', $file)) {
+        print "cannot open $file: $!";
+        return undef;
+    }
+    my @ufile;
+    while (<$fd>) {
+        chomp;
+        my @fields = split /;/;
+        my %glyph;
+        my $index = 0;
+        foreach my $fname (split /,/, $all_fnames) {
+            $glyph{$fname} = $fields[$index++];
+        }
+        push @ufile, \%glyph;
+    }
+    close $fd;
+    my %ufile = ( 'ufile' => \@ufile );
+    return \%ufile;
 }
 
 sub search_unicode_file {
-	my $ufile = shift @_;
-	my $prt = shift @_;
-	foreach my $glyph (@{$ufile->{ufile}}) {
-		if (glyph_match($glyph, @_)) {
-			print_glyph($glyph, $prt);
-		}
-	}
+    my $ufile = shift @_;
+    my $prt = shift @_;
+    foreach my $glyph (@{$ufile->{ufile}}) {
+        if (glyph_match($glyph, @_)) {
+            print_glyph($glyph, $prt);
+        }
+    }
 }
 
 sub glyph_match {
-	my $glyph = shift @_;
-	foreach my $pat (@_) {
-		if ($pat =~ /^[uU]\+(.*)/) {
-			return 0 if hex($1) != hex($glyph->{codept});
-		} else {
-			return 0 if not $glyph->{name} =~ /$pat/i;
-		}
-	}
-	return 1;
+    my $glyph = shift @_;
+    foreach my $pat (@_) {
+        if ($pat =~ /^[uU]\+(.*)/) {
+            return 0 if hex($1) != hex($glyph->{codept});
+        } else {
+            return 0 if not $glyph->{name} =~ /$pat/i;
+        }
+    }
+    return 1;
 }
 
 sub should_print_field {
-	my ($fname, $prt)  = @_;
-	return 1 if $prt eq "*ALL";
-	foreach my $p (split ',', $prt) {
-		return 1 if $fname =~ /\b$p\b/;
-	}
-	return 0;
+    my ($fname, $prt)  = @_;
+    return 1 if $prt eq "*ALL";
+    foreach my $p (split ',', $prt) {
+        return 1 if $fname =~ /\b$p\b/;
+    }
+    return 0;
 }
 
 sub print_glyph {
-	my ($glyph, $prt) = @_;
-	if ($prt eq "*SHORT") {
-		my $utf8 = glyph_utf8($glyph);
-		printf "  %s  %5s  %s  %s\n", $utf8, $glyph->{codept}, bytes($utf8, 4), $glyph->{name};
-		return;
-	}
-	foreach my $fname (split /,/, $prt) {
-		if (should_print_field($fname, $prt)) {
-			my $val = ($fname eq "utf8") ? glyph_utf8($glyph) : $glyph->{$fname};
-			printf "%-8s %s\n", $fname, $val if length($val) > 0;
-		}
-	}
-	print "\n";
+    my ($glyph, $prt) = @_;
+    if ($prt eq "*SHORT") {
+        my $utf8 = glyph_utf8($glyph);
+        printf "  %s  %5s  %s  %s\n", $utf8, $glyph->{codept}, bytes($utf8, 4), $glyph->{name};
+        return;
+    }
+    foreach my $fname (split /,/, $prt) {
+        if (should_print_field($fname, $prt)) {
+            my $val = ($fname eq "utf8") ? glyph_utf8($glyph) : $glyph->{$fname};
+            printf "%-8s %s\n", $fname, $val if length($val) > 0;
+        }
+    }
+    print "\n";
 }
 
 sub glyph_utf8 {
-	my ($glyph) = @_;
-	return encode("UTF-8", chr(hex($glyph->{codept})));
+    my ($glyph) = @_;
+    return encode("UTF-8", chr(hex($glyph->{codept})));
 }
 
 sub bytes {
-	my ($s, $n) = @_;
-	my $r = '';
-	for (my $i = 0; $i < $n; ++$i) {
-		my $b = $i < length($s) ? sprintf("%02x", ord(substr($s,$i,1))) : "  ";
-		$r .= $b;
-		$r .= " " if $i+1 < $n;
-	}
-	return $r;
+    my ($s, $n) = @_;
+    my $r = '';
+    for (my $i = 0; $i < $n; ++$i) {
+        my $b = $i < length($s) ? sprintf("%02x", ord(substr($s,$i,1))) : "  ";
+        $r .= $b;
+        $r .= " " if $i+1 < $n;
+    }
+    return $r;
 }
 
 sub progdir {
-	my ($dir) = $0 =~ m|^(.*/)[^/]*$|;
-	$dir = "./" if length($dir) == 0;
-	return $dir;
+    my ($dir) = $0 =~ m|^(.*/)[^/]*$|;
+    $dir = "./" if length($dir) == 0;
+    return $dir;
 }
