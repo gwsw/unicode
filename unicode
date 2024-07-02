@@ -38,7 +38,7 @@ sub read_unicode_file {
         print "cannot open $file: $!";
         return undef;
     }
-    my @ufile;
+    my @glyphs;
     while (<$fd>) {
         chomp;
         my @fields = split /;/;
@@ -47,17 +47,17 @@ sub read_unicode_file {
         foreach my $fname (split /,/, $all_fnames) {
             $glyph{$fname} = $fields[$index++];
         }
-        push @ufile, \%glyph;
+        push @glyphs, \%glyph;
     }
     close $fd;
-    my %ufile = ( 'ufile' => \@ufile );
+    my %ufile = ( 'glyphs' => \@glyphs );
     return \%ufile;
 }
 
 sub search_unicode_file {
     my $ufile = shift @_;
     my $prt = shift @_;
-    foreach my $glyph (@{$ufile->{ufile}}) {
+    foreach my $glyph (@{$ufile->{glyphs}}) {
         if (glyph_match($glyph, @_)) {
             print_glyph($glyph, $prt);
         }
@@ -76,15 +76,6 @@ sub glyph_match {
     return 1;
 }
 
-sub should_print_field {
-    my ($fname, $prt)  = @_;
-    return 1 if $prt eq "*ALL";
-    foreach my $p (split ',', $prt) {
-        return 1 if $fname =~ /\b$p\b/;
-    }
-    return 0;
-}
-
 sub print_glyph {
     my ($glyph, $prt) = @_;
     my $utf8 = glyph_utf8($glyph);
@@ -99,6 +90,15 @@ sub print_glyph {
         }
     }
     print "\n";
+}
+
+sub should_print_field {
+    my ($fname, $prt)  = @_;
+    return 1 if $prt eq "*ALL";
+    foreach my $p (split ',', $prt) {
+        return 1 if $fname =~ /\b$p\b/;
+    }
+    return 0;
 }
 
 sub glyph_utf8 {
