@@ -9,8 +9,8 @@ my $all_fnames = "codept,name,cat,comb,bidi,decomp,decval,digval,numval,mirror,o
 my $usage = <<_EOF_;
 usage: unicode [options] name_string...
        Prints all glyphs whose name matches all name_strings.
-   or: unicode [options] U+XXXX
-       Prints the glyph for U+XXXX.
+   or: unicode [options] U+XXXX[-U+YYYY]
+       Prints the glyph between U+XXXX and U+YYYY inclusive.
    Options:
        -f <name>   Name of UnicodeData.txt file.
        -l          Long output.
@@ -66,9 +66,12 @@ sub search_unicode_file {
 
 sub glyph_match {
     my $glyph = shift @_;
+    my $codept = hex($glyph->{codept});
     foreach my $pat (@_) {
-        if ($pat =~ /^[uU]\+(.*)/) {
-            return 0 if hex($1) != hex($glyph->{codept});
+        if ($pat =~ /^[uU]\+(\w+)-[uU]\+(\w+)/) {
+            return 0 if ($codept < hex($1) or $codept > hex($2));
+        } elsif ($pat =~ /^[uU]\+(.*)/) {
+            return 0 if hex($1) != $codept;
         } else {
             return 0 if not $glyph->{name} =~ /$pat/i;
         }
