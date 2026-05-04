@@ -3,9 +3,26 @@ use strict;
 use Getopt::Std;
 use Encode;
 
+# ----------------------------------------------------------------------
 # All fields in UnicodeData.txt, in the order they appear in each line.
 my $all_fnames = "codept,name,cat,comb,bidi,decomp,decval,digval,numval,mirror,oldname,cmt,ucmap,lcmap,titmap";
 
+my $usage = <<_EOF_;
+usage: unicode [options] name_string...
+       Prints all glyphs whose name matches all name_strings.
+   or: unicode [options] U+XXXX[-U+YYYY]
+       Prints the glyph between U+XXXX and U+YYYY inclusive.
+   Options:
+       -f <name>   Name of UnicodeData.txt file.
+       -h          Print header for one-line output.
+       -l          Long output.
+       -L          Complete output.
+       -n          One-line output.
+       -p <fields> Print only listed fields (from $all_fnames).
+       -w <name>   Name of EastAsianWidth.txt file.
+_EOF_
+
+# ----------------------------------------------------------------------
 my %field_width = (
     'char'    => 2,
     'codept'  => 5,
@@ -55,6 +72,8 @@ my %nonprint = (
     "Zp" => 1, # Separator, Paragraph
 );
 
+my %wide_prop = ( 'F' => 1, 'W' => 1 ); # East Asian Fullwidth or Wide
+
 my @force_omit = (
     [0xad,    0xad],    # SOFT HYPHEN
     [0x200d,  0x200d],  # ZERO WIDTH JOINER
@@ -72,26 +91,14 @@ my @force_compose = (
 );
 my $force_compose;
 
-my $usage = <<_EOF_;
-usage: unicode [options] name_string...
-       Prints all glyphs whose name matches all name_strings.
-   or: unicode [options] U+XXXX[-U+YYYY]
-       Prints the glyph between U+XXXX and U+YYYY inclusive.
-   Options:
-       -f <name>   Name of UnicodeData.txt file.
-       -h          Print header for one-line output.
-       -l          Long output.
-       -L          Complete output.
-       -n          One-line output.
-       -p <fields> Print only listed fields (from $all_fnames).
-_EOF_
-
+# ----------------------------------------------------------------------
 exit (main() ? 0 : 1);
 
 sub main {
     my %opt;
-    die $usage if not getopts("f:hlLnp:", \%opt);
-    my $file = ($opt{f} or progdir()."UnicodeData.txt");
+    die $usage if not getopts("f:hlLnp:w:", \%opt);
+    my $ufilename = ($opt{f} or progdir()."UnicodeData.txt");
+    my $wfilename = ($opt{w} or progdir()."EastAsianWidth.txt");
     my $prt = $opt{p} ? $opt{p} :
         $opt{L} ? "char,utf8,".$all_fnames :
         $opt{l} ? "char,utf8,codept,cat,ucmap,lcmap,name" :
@@ -100,12 +107,14 @@ sub main {
     $force_compose = mktable(\@force_compose);
     $force_omit = mktable(\@force_omit);
 
-    my $ufile = read_unicode_file($file);
+    my $ufile = read_unicode_file($ufilename);
+    my $wfile = read_width_file($wfilename);
     return 0 if not $ufile;
     print_header($prt) if $opt{h} and $opt{n};
-    return search_unicode_file($ufile, $prt, $opt{n}, @ARGV);
+    return search_unicode_file($ufile, $wfile, $prt, $opt{n}, @ARGV);
 }
 
+# ----------------------------------------------------------------------
 sub mktable {
     my ($ranges) = @_;
     my %table;
@@ -118,6 +127,7 @@ sub mktable {
     return \%table;
 }
 
+# ----------------------------------------------------------------------
 sub read_unicode_file {
     my ($file) = @_;
     my $fd;
@@ -149,17 +159,46 @@ sub read_unicode_file {
     return \%ufile;
 }
 
+# ----------------------------------------------------------------------
+sub read_width_file {
+    my ($file) = @_;
+    my $fd;
+    if (not open($fd, '<', $file)) {
+        print "cannot open $file: $!\n";
+        return undef;
+    }
+    my %widths;
+    while (<$fd>) {
+        chomp;
+        if (/^\s*([0-9A-F]+)(\.\.([0-9A-F]+))?\s*;\s*(\w+)/) {
+            my $lo = hex($1);
+            my $hi = defined($3) ? hex($3) : $lo;
+            my $prop = $4;
+            if ($wide_prop{$prop}) {
+                for (my $ch = $lo; $ch <= $hi; ++$ch) {
+                    $widths{$ch} = 2;
+                }
+            }
+        }
+    }
+    close $fd;
+    return \%widths;
+}
+
+# ----------------------------------------------------------------------
 sub search_unicode_file {
     my $ufile = shift @_;
+    my $wfile = shift @_;
     my $prt = shift @_;
     my $oneline = shift @_;
     foreach my $glyph (@{$ufile->{glyphs}}) {
         if (glyph_match($glyph, @_)) {
-            print_glyph($glyph, $prt, $oneline);
+            print_glyph($glyph, $wfile, $prt, $oneline);
         }
     }
 }
 
+# ----------------------------------------------------------------------
 sub glyph_match {
     my $glyph = shift @_;
     my $codept = hex($glyph->{codept});
@@ -175,8 +214,9 @@ sub glyph_match {
     return 1;
 }
 
+# ----------------------------------------------------------------------
 sub print_glyph {
-    my ($glyph, $prt, $oneline) = @_;
+    my ($glyph, $wfile, $prt, $oneline) = @_;
     my $utf8 = glyph_utf8($glyph);
     foreach my $fname (split /,/, $prt) {
         my $val = ($fname eq "char") ? $utf8 :
@@ -185,7 +225,7 @@ sub print_glyph {
         if ($oneline) {
             my $width = $field_width{$fname};
             if ($fname eq "char") {
-                my $cw = glyph_width($glyph);
+                my $cw = glyph_width($glyph, $wfile);
                 print $val if $cw > 0;
                 printf "%-*s", $width+1-$cw, '';
             } elsif ($width) {
@@ -198,6 +238,7 @@ sub print_glyph {
     printf "\n";
 }
 
+# ----------------------------------------------------------------------
 sub print_header {
     my ($prt) = @_;
     foreach my $fname (split /,/, $prt) {
@@ -207,20 +248,13 @@ sub print_header {
     printf "\n";
 }
 
-sub should_print_field {
-    my ($fname, $prt)  = @_;
-    return 1 if $prt eq "*ALL";
-    foreach my $p (split ',', $prt) {
-        return 1 if $fname =~ /\b$p\b/;
-    }
-    return 0;
-}
-
+# ----------------------------------------------------------------------
 sub glyph_utf8 {
     my ($glyph) = @_;
     return encode("UTF-8", chr(hex($glyph->{codept})));
 }
 
+# ----------------------------------------------------------------------
 sub bytes {
     my ($s, $n) = @_;
     my $r = '';
@@ -232,15 +266,18 @@ sub bytes {
     return $r;
 }
 
+# ----------------------------------------------------------------------
 sub progdir {
     my ($dir) = $0 =~ m|^(.*/)[^/]*$|;
     $dir = "./" if length($dir) == 0;
     return $dir;
 }
 
+# ----------------------------------------------------------------------
 sub glyph_width {
-    my ($glyph) = @_;
+    my ($glyph, $wfile) = @_;
     my $cat = $glyph->{cat};
     return 0 if $nonprint{$cat};
-    return 1;
+    my $w = $$wfile{hex $glyph->{codept}};
+    return defined($w) ? $w : 1;
 }
