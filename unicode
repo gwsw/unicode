@@ -7,23 +7,25 @@ use Encode;
 # All fields in UnicodeData.txt, in the order they appear in each line.
 my $all_fnames   = "codept,name,cat,comb,bidi,decomp,decval,digval,numval,mirror,oldname,cmt,ucmap,lcmap,titmap";
 
-my $short_fnames = "char,codept,utf8,name";
-my $med_fnames   = "char,codept,utf8,cat,ucmap,lcmap,name";
-my $long_fnames  = "char,codept,utf8,width,cat,bidi,comb,ucmap,lcmap,titmap,decomp,decval,digval,numval,mirror,name,oldname,cmt";
+my $short_fnames = "char,codept,utf8,name2";
+my $med_fnames   = "char,codept,utf8,cat,ucmap,lcmap,name2";
+my $long_fnames  = "char,codept,utf8,width,cat,bidi,comb,ucmap,lcmap,titmap,decomp,decval,digval,numval,mirror,name2,cmt";
 
 my $usage = <<_EOF_;
 usage: unicode [options] [selector]...
-       Prints all glyphs whose name matches all selectors.
+       Prints glyphs which match all selectors.
        Each selector is a comma-separated list of patterns, and
        a glyph matches the selector if it matches any of the patterns.
-       A pattern is either a Unicode code point in the form U+xxxx,
-       or a range in the form U+xxxx-U+yyyy, or a regular expression
-       to match the name.
+       A pattern is one of:
+       1. A Unicode code point in the form U+xxxx or xxxx.
+       2. A range in the form U+xxxx-U+yyyy or xxxx-yyyy.
+       3. A regular expression in the form /pattern/ to match the name.
+       By default, the output includes fields: $short_fnames.
    Options:
        -f <file>   Name of UnicodeData.txt file.
        -h          Print header before one-line output.
-       -l          Long output.
-       -L          Complete output.
+       -l          More fields ($med_fnames).
+       -L          All fields.
        -m          Multi-line output.
        -p <fields> Print only listed fields (from $all_fnames).
        -w <file>   Name of EastAsianWidth.txt file.
@@ -35,6 +37,7 @@ my %field_width = (
     'codept'  => 5,
     'name'    => 50,
     'oldname' => 50,
+    'name2'   => 80,
     'bidi'    => 3,
     'cat'     => 2,
     'comb'    => 5,
@@ -54,6 +57,7 @@ my %field_title = (
     'codept'  => "code",
     'name'    => "name",
     'oldname' => "old name",
+    'name2'   => "name/old name",
     'bidi'    => "bi",
     'cat'     => "ct",
     'comb'    => "+",
@@ -82,8 +86,16 @@ my %nonprint = (
     "Zp" => 1, # Separator, Paragraph
 );
 
-my %wide_prop = ( 'F' => 1, 'W' => 1 ); # East Asian Fullwidth or Wide
-my %bad_bidi = ( 'R' => 1, 'AL' => 1, 'AN' => 1 ); # Right-to-left, Arabic, or Arabic number
+my %wide_prop = (
+    'F' => 1,  # Fullwidth
+    'W' => 1,  # Wide
+);
+
+my %bad_bidi = (
+    'R' => 1,  # Right-to-left
+    'AL' => 1, # Arabic
+    'AN' => 1, # Arabic Number
+);
 
 my @force_omit = (
     [0xad,    0xad],    # SOFT HYPHEN
@@ -225,13 +237,17 @@ sub glyph_match2 {
 sub glyph_match3 {
     my ($glyph, $pat) = @_;
     my $codept = hex($glyph->{codept});
-    if ($pat =~ /^[uU]\+([0-9a-fA-F]+)-[uU]\+([0-9a-fA-F]+)/) {
-        return ($codept >= hex($1) and $codept <= hex($2));
+    if ($pat =~ /^([uU]\+)?([0-9a-fA-F]+)-([uU]\+)?([0-9a-fA-F]+)/) {
+        return ($codept >= hex($2) and $codept <= hex($4));
     }
-    if ($pat =~ /^[uU]\+([0-9a-fA-F]+)/) {
-        return (hex($1) == $codept);
+    if ($pat =~ /^([uU]\+)?([0-9a-fA-F]+)/) {
+        return (hex($2) == $codept);
     }
-    return ($glyph->{name} =~ /$pat/i);
+    if ($pat =~ m|^/(.*)/$|) {
+        my $re = $1;
+        return ($glyph->{name} =~ /$re/i);
+    }
+    die "invalid pattern: $pat\n";
 }
 
 # ----------------------------------------------------------------------
@@ -245,6 +261,7 @@ sub print_glyph {
         my $val = ($fname eq "char") ? $utf8 :
                   ($fname eq "utf8") ? bytes($utf8, length($utf8)) :
                   ($fname eq "width") ? $cw :
+                  ($fname eq "name2") ? "$glyph->{name}" . (length($glyph->{oldname}) > 0 ? " / $glyph->{oldname}" : "") :
                   $glyph->{$fname};
         if ($oneline) {
             my $fwidth = $field_width{$fname};
@@ -270,7 +287,10 @@ sub print_header {
     my ($prt) = @_;
     foreach my $fname (split /,/, $prt) {
         my $width = $field_width{$fname};
-        printf "%-*s", $width+1, uc $field_title{$fname} if $width;
+        if ($width) {
+            my $title = uc($field_title{$fname});
+            printf "%-*s", $width+1, $title;
+        }
     }
     printf "\n";
 }
