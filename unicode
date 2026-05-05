@@ -5,11 +5,11 @@ use Encode;
 
 # ----------------------------------------------------------------------
 # All fields in UnicodeData.txt, in the order they appear in each line.
-my $all_fnames   = "codept,name,cat,comb,bidi,decomp,decval,digval,numval,mirror,oldname,cmt,ucmap,lcmap,titmap";
+my $file_fnames   = "codept,cname,ccat,comb,bidi,decomp,decval,digval,numval,mirror,oldname,cmt,ucmap,lcmap,titmap";
 
-my $short_fnames = "char,codept,utf8,name2";
-my $med_fnames   = "char,codept,utf8,cat,ucmap,lcmap,name2";
-my $long_fnames  = "char,codept,utf8,width,cat,bidi,comb,ucmap,lcmap,titmap,decomp,decval,digval,numval,mirror,name2,cmt";
+my $short_fnames = "char,codept,utf8,name";
+my $med_fnames   = "char,codept,utf8,cat,ucmap,lcmap,titmap,name";
+my $long_fnames  = "char,codept,utf8,cat,bidi,mirror,width,comb,ucmap,lcmap,titmap,decomp,decval,digval,numval,name";
 
 my $usage = <<_EOF_;
 usage: unicode [options] [selector]...
@@ -22,53 +22,55 @@ usage: unicode [options] [selector]...
        3. A regular expression in the form /pattern/ to match the name.
        By default, the output includes fields: $short_fnames.
    Options:
-       -f <file>   Name of UnicodeData.txt file.
+       -f FILE     Name of UnicodeData.txt file.
        -h          Print header before one-line output.
        -l          More fields ($med_fnames).
-       -L          All fields.
+       -L          All fields ($long_fnames).
        -m          Multi-line output.
-       -p <fields> Print only listed fields (from $all_fnames).
-       -w <file>   Name of EastAsianWidth.txt file.
+       -p FIELDS   Print only listed fields.
+       -w FILE     Name of EastAsianWidth.txt file.
 _EOF_
 
 # ----------------------------------------------------------------------
 my %field_width = (
+    'bidi'    => 3,
+    'ccat'    => 2,
     'char'    => 2,
     'codept'  => 5,
-    'name'    => 50,
-    'oldname' => 50,
-    'name2'   => 80,
-    'bidi'    => 3,
-    'cat'     => 2,
     'comb'    => 5,
     'decomp'  => 24,
     'decval'  => 1,
     'digval'  => 1,
-    'mirror'  => 1,
-    'numval'  => 5,
-    'ucmap'   => 5,
     'lcmap'   => 5,
+    'mirror'  => 1,
+    'cname'   => 50,
+    'name'    => 80,
+    'numval'  => 5,
+    'oldname' => 50,
+    'cat'     => 2,
     'titmap'  => 5,
+    'ucmap'   => 5,
     'utf8'    => 11,
-    'width'   => 2,
+    'width'   => 1,
 );
 my %field_title = (
+    'bidi'    => "bi",
+    'ccat'    => "ct",
     'char'    => "ch",
     'codept'  => "code",
-    'name'    => "name",
-    'oldname' => "old name",
-    'name2'   => "name/old name",
-    'bidi'    => "bi",
-    'cat'     => "ct",
     'comb'    => "+",
     'decomp'  => "decomp",
     'decval'  => "d",
     'digval'  => "g",
-    'mirror'  => "m",
-    'numval'  => "num",
-    'ucmap'   => "uc",
     'lcmap'   => "lc",
+    'mirror'  => "m",
+    'cname'   => "name",
+    'name'    => "name/old name",
+    'numval'  => "num",
+    'oldname' => "old name",
+    'cat'     => "ct",
     'titmap'  => "title",
+    'ucmap'   => "uc",
     'utf8'    => "utf-8",
     'width'   => "w",
 );
@@ -163,11 +165,12 @@ sub read_unicode_file {
         my %glyph;
         my $codept = -1;
         my $index = 0;
-        foreach my $fname (split /,/, $all_fnames) {
+        foreach my $fname (split /,/, $file_fnames) {
             my $field = $fields[$index++];
             if ($fname eq "codept") {
                 $codept = hex($field);
-            } elsif ($fname eq "cat") {
+            } elsif ($fname eq "ccat") {
+                $glyph{cat} = $field;
                 $field = "Mn" if $force_compose->{$codept};
                 $field = "Xx" if $force_omit->{$codept};
             }
@@ -245,7 +248,7 @@ sub glyph_match3 {
     }
     if ($pat =~ m|^/(.*)/$|) {
         my $re = $1;
-        return ($glyph->{name} =~ /$re/i);
+        return ($glyph->{cname} =~ /$re/i or $glyph->{oldname} =~ /$re/i);
     }
     die "invalid pattern: $pat\n";
 }
@@ -261,7 +264,7 @@ sub print_glyph {
         my $val = ($fname eq "char") ? $utf8 :
                   ($fname eq "utf8") ? bytes($utf8, length($utf8)) :
                   ($fname eq "width") ? $cw :
-                  ($fname eq "name2") ? "$glyph->{name}" . (length($glyph->{oldname}) > 0 ? " / $glyph->{oldname}" : "") :
+                  ($fname eq "name") ? "$glyph->{cname}" . (length($glyph->{oldname}) > 0 ? " / $glyph->{oldname}" : "") :
                   $glyph->{$fname};
         if ($oneline) {
             my $fwidth = $field_width{$fname};
@@ -323,7 +326,7 @@ sub progdir {
 # ----------------------------------------------------------------------
 sub glyph_width {
     my ($glyph, $wfile) = @_;
-    return 0 if $nonprint{$glyph->{cat}};
+    return 0 if $nonprint{$glyph->{ccat}};
     return 0 if $bad_bidi{$glyph->{bidi}};
     my $w = $$wfile{hex $glyph->{codept}};
     return defined($w) ? $w : 1;
