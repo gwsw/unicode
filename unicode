@@ -17,45 +17,48 @@ usage: unicode [options] [selector]...
        Each selector is a comma-separated list of patterns, and
        a glyph matches the selector if it matches any of the patterns.
        A pattern is one of:
-       1. A Unicode code point in the form U+xxxx or xxxx.
-       2. A range in the form U+xxxx-U+yyyy or xxxx-yyyy.
+       1. A Unicode codepoint in the form U+xxxx or xxxx.
+       2. A codepoint range in the form U+xxxx-U+yyyy or xxxx-yyyy.
        3. A regular expression in the form /pattern/ to match the name.
        By default, the output includes fields: $short_fnames.
    Options:
-       -c          Print all chars, including non-printable ones.
-       -f FILE     Name of UnicodeData.txt file.
-       -h          Print header before one-line output.
-       -l          More fields ($med_fnames).
-       -L          All fields ($long_fnames).
+       -a          Print all chars, including non-printable ones.
+       -h          Don't print header line.
+       -l          Print more fields ($med_fnames).
+       -L          Print all fields
+                   ($long_fnames).
        -m          Multi-line output.
        -p FIELDS   Print only listed fields. Field may specify width after colon.
+       -u FILE     Name of UnicodeData.txt file.
        -w FILE     Name of EastAsianWidth.txt file.
 _EOF_
 
 # ----------------------------------------------------------------------
-my %field_info = (
-    'bidi'    => { 'width' => 3,  'title' => "bi", },
-    'cat'     => { 'width' => 2,  'title' => "ct", },
-    'ccat'    => { 'width' => 2,  'title' => "ct", },
-    'cmt'     => { 'width' => 40, 'title' => "comment", },
-    'char'    => { 'width' => 2,  'title' => "ch", },
-    'cname'   => { 'width' => 50, 'title' => "name", },
-    'codept'  => { 'width' => 5,  'title' => "code", },
-    'comb'    => { 'width' => 5,  'title' => "+", },
-    'decomp'  => { 'width' => 24, 'title' => "decomp", },
-    'decval'  => { 'width' => 1,  'title' => "d", },
-    'digval'  => { 'width' => 1,  'title' => "g", },
-    'lcmap'   => { 'width' => 5,  'title' => "lc", },
-    'mirror'  => { 'width' => 1,  'title' => "m", },
-    'name'    => { 'width' => 80, 'title' => "name/old name", },
-    'numval'  => { 'width' => 5,  'title' => "num", },
-    'oldname' => { 'width' => 50, 'title' => "old name", },
-    'titmap'  => { 'width' => 5,  'title' => "title", },
-    'ucmap'   => { 'width' => 5,  'title' => "uc", },
-    'utf8'    => { 'width' => 11, 'title' => "utf-8", },
-    'width'   => { 'width' => 1,  'title' => "w", },
+# Properties of each field, used for formatting output.
+my @field_info = (
+    { 'fname' => 'bidi',    'width' => 3,  'title' => "bi", },
+    { 'fname' => 'cat',     'width' => 2,  'title' => "ct", },
+    { 'fname' => 'ccat',    'width' => 2,  'title' => "ct", },
+    { 'fname' => 'cmt',     'width' => 40, 'title' => "comment", },
+    { 'fname' => 'char',    'width' => 2,  'title' => "ch", },
+    { 'fname' => 'cname',   'width' => 50, 'title' => "name", },
+    { 'fname' => 'codept',  'width' => 5,  'title' => "code", },
+    { 'fname' => 'comb',    'width' => 5,  'title' => "+", },
+    { 'fname' => 'decomp',  'width' => 24, 'title' => "decomp", },
+    { 'fname' => 'decval',  'width' => 1,  'title' => "d", },
+    { 'fname' => 'digval',  'width' => 1,  'title' => "g", },
+    { 'fname' => 'lcmap',   'width' => 5,  'title' => "lc", },
+    { 'fname' => 'mirror',  'width' => 1,  'title' => "m", },
+    { 'fname' => 'name',    'width' => 80, 'title' => "name/old name", },
+    { 'fname' => 'numval',  'width' => 5,  'title' => "num", },
+    { 'fname' => 'oldname', 'width' => 50, 'title' => "old name", },
+    { 'fname' => 'titmap',  'width' => 5,  'title' => "title", },
+    { 'fname' => 'ucmap',   'width' => 5,  'title' => "uc", },
+    { 'fname' => 'utf8',    'width' => 11, 'title' => "utf-8", },
+    { 'fname' => 'width',   'width' => 1,  'title' => "w", },
 );
 
+# Categories of non-printable characters in UnicodeData.
 my %nonprint = (
     "Mc" => 1, # Mark, Spacing Combining
     "Me" => 1, # Mark, Enclosing
@@ -69,15 +72,17 @@ my %nonprint = (
     "Zp" => 1, # Separator, Paragraph
 );
 
-my %wide_prop = (
-    'F' => 1,  # Fullwidth
-    'W' => 1,  # Wide
-);
-
+# Bidi values of characters which should not be printed.
 my %bad_bidi = (
     'R' => 1,  # Right-to-left
     'AL' => 1, # Arabic
     'AN' => 1, # Arabic Number
+);
+
+# Properties of wide characters in EastAsianWidth.
+my %wide_prop = (
+    'F' => 1,  # Fullwidth
+    'W' => 1,  # Wide
 );
 
 my @force_omit = (
@@ -102,23 +107,24 @@ exit (main() ? 0 : 1);
 
 sub main {
     my %opt;
-    die $usage if not getopts("cf:hlLmp:w:", \%opt);
-    my $ufilename = ($opt{f} or progdir()."UnicodeData.txt");
+    die $usage if not getopts("ahlLmp:u:w:", \%opt);
+    my $ufilename = ($opt{u} or progdir()."UnicodeData.txt");
     my $wfilename = ($opt{w} or progdir()."EastAsianWidth.txt");
-    my $prt = $opt{p} ? $opt{p} :
+    my $fnames = $opt{p} ? fnames($opt{p}) :
         $opt{L} ? $long_fnames : $opt{l} ? $med_fnames : $short_fnames;
 
     $force_compose = mktable(\@force_compose);
     $force_omit = mktable(\@force_omit);
 
-    my $ufile = read_unicode_file($ufilename);
+    my $glyphs = read_unicode_file($ufilename);
     my $wfile = read_width_file($wfilename);
-    return 0 if not $ufile;
-    print_header($prt) if ($opt{h} and not $opt{m});
-    return search_unicode_file($ufile, $wfile, $prt, (not $opt{m}), $opt{c}, @ARGV);
+    return 0 if not $glyphs;
+    print_header($fnames) if (not $opt{h} and not $opt{m});
+    return search_unicode_file($glyphs, $wfile, $fnames, (not $opt{m}), $opt{a}, @ARGV);
 }
 
 # ----------------------------------------------------------------------
+# Build a hash table from a list of codepoint ranges.
 sub mktable {
     my ($ranges) = @_;
     my %table;
@@ -132,6 +138,7 @@ sub mktable {
 }
 
 # ----------------------------------------------------------------------
+# Read UnicodeData.txt and return a list of glyphs.
 sub read_unicode_file {
     my ($file) = @_;
     my $fd;
@@ -160,11 +167,11 @@ sub read_unicode_file {
         push @glyphs, \%glyph;
     }
     close $fd;
-    my %ufile = ( 'glyphs' => \@glyphs );
-    return \%ufile;
+    return \@glyphs;
 }
 
 # ----------------------------------------------------------------------
+# Read EastAsianWidth.txt and return a hash mapping codepoints to widths.
 sub read_width_file {
     my ($file) = @_;
     my $fd;
@@ -192,14 +199,14 @@ sub read_width_file {
 
 # ----------------------------------------------------------------------
 sub search_unicode_file {
-    my $ufile = shift @_;
+    my $glyphs = shift @_;
     my $wfile = shift @_;
-    my $prt = shift @_;
+    my $fnames = shift @_;
     my $oneline = shift @_;
     my $all_print = shift @_;
-    foreach my $glyph (@{$ufile->{glyphs}}) {
+    foreach my $glyph (@$glyphs) {
         if (glyph_match($glyph, @_)) {
-            print_glyph($glyph, $wfile, $prt, $oneline, $all_print);
+            print_glyph($glyph, $wfile, $fnames, $oneline, $all_print);
         }
     }
 }
@@ -237,10 +244,10 @@ sub glyph_match3 {
 
 # ----------------------------------------------------------------------
 sub print_glyph {
-    my ($glyph, $wfile, $prt, $oneline, $all_print) = @_;
+    my ($glyph, $wfile, $fnames, $oneline, $all_print) = @_;
     my $utf8 = glyph_utf8($glyph);
     my $cw = glyph_width($glyph, $wfile);
-    my @fnames = split /,/, $prt;
+    my @fnames = split /,/, $fnames;
     for (my $p = 0; $p < @fnames; ++$p) {
         my ($fname, $xx, $fwidth) = $fnames[$p] =~ /^([^:]+)(:(\d*))?$/;
         my $val = ($fname eq "char") ? $utf8 :
@@ -249,7 +256,7 @@ sub print_glyph {
                   ($fname eq "name") ? "$glyph->{cname}" . (length($glyph->{oldname}) > 0 ? " / $glyph->{oldname}" : "") :
                   $glyph->{$fname};
         if ($oneline) {
-            $fwidth = (($p+1 < @fnames) ? $field_info{$fname}{width} : 0) if not $fwidth;
+            $fwidth = (($p+1 < @fnames) ? field_info($fname,'width') : 0) if not $fwidth;
             my $ps = $val;
             my $pw = ($fname eq "char") ? $cw : length($ps);
             if ($fwidth > 0 and $pw > $fwidth) {
@@ -269,12 +276,12 @@ sub print_glyph {
 
 # ----------------------------------------------------------------------
 sub print_header {
-    my ($prt) = @_;
-    foreach my $fnamed (split /,/, $prt) {
+    my ($fnames) = @_;
+    foreach my $fnamed (split /,/, $fnames) {
         my ($fname, $xx, $width) = $fnamed =~ /^([^:]+)(:(\d*))?$/;
-        $width = $field_info{$fname}{width} if not $width;
+        $width = field_info($fname,'width') if not $width;
         if ($width) {
-            my $title = uc($field_info{$fname}{title});
+            my $title = uc(field_info($fname,'title'));
             printf "%-*s", $width+1, $title;
         }
     }
@@ -313,4 +320,39 @@ sub glyph_width {
     return 0 if $bad_bidi{$glyph->{bidi}};
     my $w = $$wfile{hex $glyph->{codept}};
     return defined($w) ? $w : 1;
+}
+
+# ----------------------------------------------------------------------
+sub fname {
+    my ($fname) = @_;
+    my $ret;
+    foreach my $info (@field_info) {
+        if (substr($info->{fname}, 0, length $fname) eq $fname) {
+            die "ambiguous field name: $fname\n" if defined $ret;
+            $ret = $info->{fname};
+        }
+    }
+    die "unknown field name: $fname\n" if not defined $ret;
+    return $ret;
+}
+
+# ----------------------------------------------------------------------
+sub fnames {
+    my ($fnames) = @_;
+    my @ret;
+    foreach my $fnamed (split /,/, $fnames) {
+        my ($fname, $xx, $width) = $fnamed =~ /^([^:]+)(:(\d*))?$/;
+        $fname = fname($fname);
+        push @ret, defined($width) ? "$fname:$width" : $fname;
+    }
+    return join(",", @ret);
+}
+
+# ----------------------------------------------------------------------
+sub field_info {
+    my ($fname, $key) = @_;
+    foreach my $info (@field_info) {
+        return $info->{$key} if $info->{fname} eq $fname;
+    }
+    die "unknown field name: $fname\n";
 }
