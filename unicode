@@ -200,6 +200,7 @@ sub read_width_file {
 }
 
 # ----------------------------------------------------------------------
+# Print selected glyphs.
 sub search_unicode_file {
     my $glyphs = shift @_;
     my $wfile = shift @_;
@@ -215,6 +216,7 @@ sub search_unicode_file {
 }
 
 # ----------------------------------------------------------------------
+# Determine if a glyph matches selectors.
 sub glyph_match {
     my $glyph = shift @_;
     foreach my $pat (@_) {
@@ -246,6 +248,7 @@ sub glyph_match3 {
 }
 
 # ----------------------------------------------------------------------
+# Print a glyph.
 sub print_glyph {
     my ($glyph, $wfile, $fnames, $oneline, $all_print, $no_trunc) = @_;
     my $utf8 = glyph_utf8($glyph);
@@ -282,6 +285,7 @@ sub print_glyph {
 }
 
 # ----------------------------------------------------------------------
+# Print header line.
 sub print_header {
     my ($fnames) = @_;
     foreach my $fnamed (split /,/, $fnames) {
@@ -296,12 +300,14 @@ sub print_header {
 }
 
 # ----------------------------------------------------------------------
+# Return UTF-8 encoding of a glyph.
 sub glyph_utf8 {
     my ($glyph) = @_;
     return encode("UTF-8", chr(hex($glyph->{codept})));
 }
 
 # ----------------------------------------------------------------------
+# Return hex values of a string of bytes.
 sub bytes {
     my ($s, $n) = @_;
     my $r = '';
@@ -314,6 +320,7 @@ sub bytes {
 }
 
 # ----------------------------------------------------------------------
+# Return directory of the program.
 sub progdir {
     my ($dir) = $0 =~ m|^(.*/)[^/]*$|;
     $dir = "./" if length($dir) == 0;
@@ -321,6 +328,7 @@ sub progdir {
 }
 
 # ----------------------------------------------------------------------
+# Return printing width of a glyph.
 sub glyph_width {
     my ($glyph, $wfile) = @_;
     return 0 if $nonprint{$glyph->{ccat}};
@@ -330,6 +338,7 @@ sub glyph_width {
 }
 
 # ----------------------------------------------------------------------
+# Return field name for a name prefix.
 sub fname {
     my ($fname) = @_;
     my $ret;
@@ -344,6 +353,7 @@ sub fname {
 }
 
 # ----------------------------------------------------------------------
+# Return list of field names, for a list of name prefixes.
 sub fnames {
     my ($fnames) = @_;
     my @ret;
@@ -356,6 +366,7 @@ sub fnames {
 }
 
 # ----------------------------------------------------------------------
+# Return field property for a given field and property name.
 sub field_info {
     my ($fname, $key) = @_;
     foreach my $info (@field_info) {
