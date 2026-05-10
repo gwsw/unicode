@@ -23,12 +23,14 @@ usage: unicode [options] [selector]...
        By default, the output includes fields: $short_fnames.
    Options:
        -a          Print all chars, including non-printable ones.
+       -f          Don't truncate values to fit the field width.
        -h          Don't print header line.
        -l          Print more fields ($med_fnames).
        -L          Print all fields
                    ($long_fnames).
        -m          Multi-line output.
-       -p FIELDS   Print only listed fields. Field may specify width after colon.
+       -p FIELDS   Comma-separated list of fields to print.
+                   May specify each field width after colon.
        -u FILE     Name of UnicodeData.txt file.
        -w FILE     Name of EastAsianWidth.txt file.
 _EOF_
@@ -44,7 +46,7 @@ my @field_info = (
     { 'fname' => 'cname',   'width' => 50, 'title' => "name", },
     { 'fname' => 'codept',  'width' => 5,  'title' => "code", },
     { 'fname' => 'comb',    'width' => 5,  'title' => "+", },
-    { 'fname' => 'decomp',  'width' => 24, 'title' => "decomp", },
+    { 'fname' => 'decomp',  'width' => 25, 'title' => "decomp", },
     { 'fname' => 'decval',  'width' => 1,  'title' => "d", },
     { 'fname' => 'digval',  'width' => 1,  'title' => "g", },
     { 'fname' => 'lcmap',   'width' => 5,  'title' => "lc", },
@@ -107,7 +109,7 @@ exit (main() ? 0 : 1);
 
 sub main {
     my %opt;
-    die $usage if not getopts("ahlLmp:u:w:", \%opt);
+    die $usage if not getopts("afhlLmp:u:w:", \%opt);
     my $ufilename = ($opt{u} or progdir()."UnicodeData.txt");
     my $wfilename = ($opt{w} or progdir()."EastAsianWidth.txt");
     my $fnames = $opt{p} ? fnames($opt{p}) :
@@ -120,7 +122,7 @@ sub main {
     my $wfile = read_width_file($wfilename);
     return 0 if not $glyphs;
     print_header($fnames) if (not $opt{h} and not $opt{m});
-    return search_unicode_file($glyphs, $wfile, $fnames, (not $opt{m}), $opt{a}, @ARGV);
+    return search_unicode_file($glyphs, $wfile, $fnames, (not $opt{m}), $opt{a}, $opt{f}, @ARGV);
 }
 
 # ----------------------------------------------------------------------
@@ -204,9 +206,10 @@ sub search_unicode_file {
     my $fnames = shift @_;
     my $oneline = shift @_;
     my $all_print = shift @_;
+    my $no_trunc = shift @_;
     foreach my $glyph (@$glyphs) {
         if (glyph_match($glyph, @_)) {
-            print_glyph($glyph, $wfile, $fnames, $oneline, $all_print);
+            print_glyph($glyph, $wfile, $fnames, $oneline, $all_print, $no_trunc);
         }
     }
 }
@@ -244,7 +247,7 @@ sub glyph_match3 {
 
 # ----------------------------------------------------------------------
 sub print_glyph {
-    my ($glyph, $wfile, $fnames, $oneline, $all_print) = @_;
+    my ($glyph, $wfile, $fnames, $oneline, $all_print, $no_trunc) = @_;
     my $utf8 = glyph_utf8($glyph);
     my $cw = glyph_width($glyph, $wfile);
     my @fnames = split /,/, $fnames;
@@ -260,8 +263,12 @@ sub print_glyph {
             my $ps = $val;
             my $pw = ($fname eq "char") ? $cw : length($ps);
             if ($fwidth > 0 and $pw > $fwidth) {
-                $ps = substr($ps, 0, $fwidth-1) . "…";
-                $pw = $fwidth;
+                if ($no_trunc) {
+                    $fwidth = $pw;
+                } else {
+                    $ps = substr($ps, 0, $fwidth-1) . "…";
+                    $pw = $fwidth;
+                }
             }
             printf("%s", $ps) if ($pw > 0 or $all_print);
             printf("%-*s", $fwidth+1-$pw, '') if $pw < $fwidth+1;
