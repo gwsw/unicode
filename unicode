@@ -22,57 +22,38 @@ usage: unicode [options] [selector]...
        3. A regular expression in the form /pattern/ to match the name.
        By default, the output includes fields: $short_fnames.
    Options:
+       -c          Print all chars, including non-printable ones.
        -f FILE     Name of UnicodeData.txt file.
        -h          Print header before one-line output.
        -l          More fields ($med_fnames).
        -L          All fields ($long_fnames).
        -m          Multi-line output.
-       -p FIELDS   Print only listed fields.
+       -p FIELDS   Print only listed fields. Field may specify width after colon.
        -w FILE     Name of EastAsianWidth.txt file.
 _EOF_
 
 # ----------------------------------------------------------------------
-my %field_width = (
-    'bidi'    => 3,
-    'ccat'    => 2,
-    'char'    => 2,
-    'codept'  => 5,
-    'comb'    => 5,
-    'decomp'  => 24,
-    'decval'  => 1,
-    'digval'  => 1,
-    'lcmap'   => 5,
-    'mirror'  => 1,
-    'cname'   => 50,
-    'name'    => 80,
-    'numval'  => 5,
-    'oldname' => 50,
-    'cat'     => 2,
-    'titmap'  => 5,
-    'ucmap'   => 5,
-    'utf8'    => 11,
-    'width'   => 1,
-);
-my %field_title = (
-    'bidi'    => "bi",
-    'ccat'    => "ct",
-    'char'    => "ch",
-    'codept'  => "code",
-    'comb'    => "+",
-    'decomp'  => "decomp",
-    'decval'  => "d",
-    'digval'  => "g",
-    'lcmap'   => "lc",
-    'mirror'  => "m",
-    'cname'   => "name",
-    'name'    => "name/old name",
-    'numval'  => "num",
-    'oldname' => "old name",
-    'cat'     => "ct",
-    'titmap'  => "title",
-    'ucmap'   => "uc",
-    'utf8'    => "utf-8",
-    'width'   => "w",
+my %field_info = (
+    'bidi'    => { 'width' => 3,  'title' => "bi", },
+    'cat'     => { 'width' => 2,  'title' => "ct", },
+    'ccat'    => { 'width' => 2,  'title' => "ct", },
+    'cmt'     => { 'width' => 40, 'title' => "comment", },
+    'char'    => { 'width' => 2,  'title' => "ch", },
+    'cname'   => { 'width' => 50, 'title' => "name", },
+    'codept'  => { 'width' => 5,  'title' => "code", },
+    'comb'    => { 'width' => 5,  'title' => "+", },
+    'decomp'  => { 'width' => 24, 'title' => "decomp", },
+    'decval'  => { 'width' => 1,  'title' => "d", },
+    'digval'  => { 'width' => 1,  'title' => "g", },
+    'lcmap'   => { 'width' => 5,  'title' => "lc", },
+    'mirror'  => { 'width' => 1,  'title' => "m", },
+    'name'    => { 'width' => 80, 'title' => "name/old name", },
+    'numval'  => { 'width' => 5,  'title' => "num", },
+    'oldname' => { 'width' => 50, 'title' => "old name", },
+    'titmap'  => { 'width' => 5,  'title' => "title", },
+    'ucmap'   => { 'width' => 5,  'title' => "uc", },
+    'utf8'    => { 'width' => 11, 'title' => "utf-8", },
+    'width'   => { 'width' => 1,  'title' => "w", },
 );
 
 my %nonprint = (
@@ -121,7 +102,7 @@ exit (main() ? 0 : 1);
 
 sub main {
     my %opt;
-    die $usage if not getopts("f:hlLmp:w:", \%opt);
+    die $usage if not getopts("cf:hlLmp:w:", \%opt);
     my $ufilename = ($opt{f} or progdir()."UnicodeData.txt");
     my $wfilename = ($opt{w} or progdir()."EastAsianWidth.txt");
     my $prt = $opt{p} ? $opt{p} :
@@ -134,7 +115,7 @@ sub main {
     my $wfile = read_width_file($wfilename);
     return 0 if not $ufile;
     print_header($prt) if ($opt{h} and not $opt{m});
-    return search_unicode_file($ufile, $wfile, $prt, (not $opt{m}), @ARGV);
+    return search_unicode_file($ufile, $wfile, $prt, (not $opt{m}), $opt{c}, @ARGV);
 }
 
 # ----------------------------------------------------------------------
@@ -215,9 +196,10 @@ sub search_unicode_file {
     my $wfile = shift @_;
     my $prt = shift @_;
     my $oneline = shift @_;
+    my $all_print = shift @_;
     foreach my $glyph (@{$ufile->{glyphs}}) {
         if (glyph_match($glyph, @_)) {
-            print_glyph($glyph, $wfile, $prt, $oneline);
+            print_glyph($glyph, $wfile, $prt, $oneline, $all_print);
         }
     }
 }
@@ -255,26 +237,26 @@ sub glyph_match3 {
 
 # ----------------------------------------------------------------------
 sub print_glyph {
-    my ($glyph, $wfile, $prt, $oneline) = @_;
+    my ($glyph, $wfile, $prt, $oneline, $all_print) = @_;
     my $utf8 = glyph_utf8($glyph);
     my $cw = glyph_width($glyph, $wfile);
     my @fnames = split /,/, $prt;
     for (my $p = 0; $p < @fnames; ++$p) {
-        my $fname = $fnames[$p];
+        my ($fname, $xx, $fwidth) = $fnames[$p] =~ /^([^:]+)(:(\d*))?$/;
         my $val = ($fname eq "char") ? $utf8 :
                   ($fname eq "utf8") ? bytes($utf8, length($utf8)) :
                   ($fname eq "width") ? $cw :
                   ($fname eq "name") ? "$glyph->{cname}" . (length($glyph->{oldname}) > 0 ? " / $glyph->{oldname}" : "") :
                   $glyph->{$fname};
         if ($oneline) {
-            my $fwidth = $field_width{$fname};
+            $fwidth = (($p+1 < @fnames) ? $field_info{$fname}{width} : 0) if not $fwidth;
             my $ps = $val;
             my $pw = ($fname eq "char") ? $cw : length($ps);
-            if ($pw > $fwidth and $p+1 < @fnames) {
+            if ($fwidth > 0 and $pw > $fwidth) {
                 $ps = substr($ps, 0, $fwidth-1) . "…";
-                $pw = $fwidth; ##length($ps);
+                $pw = $fwidth;
             }
-            printf("%s", $ps) if $pw > 0;
+            printf("%s", $ps) if ($pw > 0 or $all_print);
             printf("%-*s", $fwidth+1-$pw, '') if $pw < $fwidth+1;
         } elsif ($fname eq "char" and $cw == 0) {
             ;
@@ -288,10 +270,11 @@ sub print_glyph {
 # ----------------------------------------------------------------------
 sub print_header {
     my ($prt) = @_;
-    foreach my $fname (split /,/, $prt) {
-        my $width = $field_width{$fname};
+    foreach my $fnamed (split /,/, $prt) {
+        my ($fname, $xx, $width) = $fnamed =~ /^([^:]+)(:(\d*))?$/;
+        $width = $field_info{$fname}{width} if not $width;
         if ($width) {
-            my $title = uc($field_title{$fname});
+            my $title = uc($field_info{$fname}{title});
             printf "%-*s", $width+1, $title;
         }
     }
