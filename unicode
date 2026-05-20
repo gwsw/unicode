@@ -288,12 +288,18 @@ sub print_glyph {
 # Print header line.
 sub print_header {
     my ($fnames) = @_;
-    foreach my $fnamed (split /,/, $fnames) {
-        my ($fname, $xx, $width) = $fnamed =~ /^([^:]+)(:(\d*))?$/;
-        $width = field_info($fname,'width') if not $width;
-        if ($width) {
+    my @fnames = split /,/, $fnames;
+    for (my $p = 0; $p < @fnames; ++$p) {
+        my $fnamed = $fnames[$p];
+        my ($fname, $xx, $fwidth) = $fnamed =~ /^([^:]+)(:(\d*))?$/;
+        $fwidth = field_info($fname,'width') if not $fwidth;
+        if ($fwidth > 0) {
             my $title = uc(field_info($fname,'title'));
-            printf "%-*s", $width+1, $title;
+            if ($p+1 < @fnames) {
+                printf "%-*s", $fwidth+1, $title;
+            } else {
+                printf "%s", $title;
+            }
         }
     }
     printf "\n";
