@@ -25,12 +25,14 @@ usage: unicode [options] [selector]...
        -a          Print all chars, including non-printable ones.
        -f          Don't truncate values to fit the field width.
        -h          Don't print header line.
-       -l          Print more fields ($med_fnames).
+       -l          Print more fields
+                   ($med_fnames).
        -L          Print all fields
                    ($long_fnames).
        -m          Multi-line output.
        -p FIELDS   Comma-separated list of fields to print.
                    May specify each field width after colon.
+       -P          Print all field names.
        -u FILE     Name of UnicodeData.txt file.
        -w FILE     Name of EastAsianWidth.txt file.
 _EOF_
@@ -38,26 +40,26 @@ _EOF_
 # ----------------------------------------------------------------------
 # Properties of each field, used for formatting output.
 my @field_info = (
-    { 'fname' => 'bidi',    'width' => 3,  'title' => "bi", },
-    { 'fname' => 'cat',     'width' => 2,  'title' => "ct", },
-    { 'fname' => 'ccat',    'width' => 2,  'title' => "ct", },
-    { 'fname' => 'cmt',     'width' => 40, 'title' => "comment", },
-    { 'fname' => 'char',    'width' => 2,  'title' => "ch", },
-    { 'fname' => 'cname',   'width' => 50, 'title' => "name", },
-    { 'fname' => 'codept',  'width' => 5,  'title' => "code", },
-    { 'fname' => 'comb',    'width' => 5,  'title' => "+", },
-    { 'fname' => 'decomp',  'width' => 25, 'title' => "decomp", },
-    { 'fname' => 'decval',  'width' => 1,  'title' => "d", },
-    { 'fname' => 'digval',  'width' => 1,  'title' => "g", },
-    { 'fname' => 'lcmap',   'width' => 5,  'title' => "lc", },
-    { 'fname' => 'mirror',  'width' => 1,  'title' => "m", },
-    { 'fname' => 'name',    'width' => 80, 'title' => "name/old name", },
-    { 'fname' => 'numval',  'width' => 5,  'title' => "num", },
-    { 'fname' => 'oldname', 'width' => 50, 'title' => "old name", },
-    { 'fname' => 'titmap',  'width' => 5,  'title' => "title", },
-    { 'fname' => 'ucmap',   'width' => 5,  'title' => "uc", },
-    { 'fname' => 'utf8',    'width' => 11, 'title' => "utf-8", },
-    { 'fname' => 'width',   'width' => 1,  'title' => "w", },
+    { 'fname' => 'bidi',    'width' => 3,  'title' => "bi",       'desc' => "bidi class" },
+    { 'fname' => 'cat',     'width' => 2,  'title' => "ct",       'desc' => "category (with overrides)" },
+    { 'fname' => 'ccat',    'width' => 2,  'title' => "ct",       'desc' => "category (without overrides)" },
+    { 'fname' => 'cmt',     'width' => 40, 'title' => "comment",  'desc' => "comment" },
+    { 'fname' => 'char',    'width' => 2,  'title' => "ch",       'desc' => "raw character" },
+    { 'fname' => 'cname',   'width' => 50, 'title' => "name",     'desc' => "name" },
+    { 'fname' => 'codept',  'width' => 5,  'title' => "code",     'desc' => "codepoint" },
+    { 'fname' => 'comb',    'width' => 5,  'title' => "+",        'desc' => "combining class" },
+    { 'fname' => 'decomp',  'width' => 25, 'title' => "decomp",   'desc' => "decomposition mapping" },
+    { 'fname' => 'decval',  'width' => 1,  'title' => "d",        'desc' => "decimal digit value" },
+    { 'fname' => 'digval',  'width' => 1,  'title' => "g",        'desc' => "digit value" },
+    { 'fname' => 'lcmap',   'width' => 5,  'title' => "lc",       'desc' => "lowercase mapping" },
+    { 'fname' => 'mirror',  'width' => 1,  'title' => "m",        'desc' => "bidi mirrored" },
+    { 'fname' => 'name',    'width' => 80, 'title' => "name/old name", 'desc' => "name plus old name" },
+    { 'fname' => 'numval',  'width' => 5,  'title' => "num",      'desc' => "numeric value" },
+    { 'fname' => 'oldname', 'width' => 50, 'title' => "old name", 'desc' => "old name" },
+    { 'fname' => 'titmap',  'width' => 5,  'title' => "title",    'desc' => "titlecase mapping" },
+    { 'fname' => 'ucmap',   'width' => 5,  'title' => "uc",       'desc' => "uppercase mapping" },
+    { 'fname' => 'utf8',    'width' => 11, 'title' => "utf-8",    'desc' => "UTF-8 encoding" },
+    { 'fname' => 'width',   'width' => 1,  'title' => "w",        'desc' => "printing width" },
 );
 
 # Categories of non-printable characters in UnicodeData.
@@ -109,7 +111,8 @@ exit (main() ? 0 : 1);
 
 sub main {
     my %opt;
-    die $usage if not getopts("afhlLmp:u:w:", \%opt);
+    die $usage if not getopts("afhlLmp:Pu:w:", \%opt);
+    return print_field_names() if $opt{P};
     my $ufilename = ($opt{u} or progdir()."UnicodeData.txt");
     my $wfilename = ($opt{w} or progdir()."EastAsianWidth.txt");
     my $fnames = $opt{p} ? fnames($opt{p}) :
@@ -303,6 +306,13 @@ sub print_header {
         }
     }
     printf "\n";
+}
+
+# ----------------------------------------------------------------------
+sub print_field_names {
+    foreach my $info (@field_info) {
+        printf "%-10s %-14s %s\n", $info->{fname}, uc $info->{title}, $info->{desc};
+    }
 }
 
 # ----------------------------------------------------------------------
