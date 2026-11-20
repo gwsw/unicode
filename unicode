@@ -16,6 +16,8 @@ usage: unicode [options] [selector]...
        Prints glyphs which match all selectors.
        Each selector is a comma-separated list of patterns, and
        a glyph matches the selector if it matches any of the patterns.
+       (That is, comma is OR, and space is AND.)
+       Selector "-" matches all glyphs.
        A pattern is one of:
        1. A Unicode codepoint in the form U+xxxx or xxxx.
        2. A codepoint range in the form U+xxxx-U+yyyy or xxxx-yyyy.
@@ -30,8 +32,8 @@ usage: unicode [options] [selector]...
        -L          Print all fields
                    ($long_fnames).
        -m          Multi-line output.
-       -p FIELDS   Comma-separated list of fields to print.
-                   May specify each field width after colon.
+       -p FIELDS   Comma-separated list of (possibly abbreviated) field names to print.
+                   May specify printing width for each field after colon.
        -P          Print all field names.
        -u FILE     Name of UnicodeData.txt file.
        -w FILE     Name of EastAsianWidth.txt file.
@@ -111,7 +113,7 @@ exit (main() ? 0 : 1);
 
 sub main {
     my %opt;
-    die $usage if not getopts("afhlLmp:Pu:w:", \%opt);
+    die $usage if not getopts("afhlLmp:Pu:w:", \%opt) or not @ARGV;
     return print_field_names() if $opt{P};
     my $ufilename = ($opt{u} or progdir()."UnicodeData.txt");
     my $wfilename = ($opt{w} or progdir()."EastAsianWidth.txt");
@@ -236,6 +238,7 @@ sub glyph_match2 {
 }
 sub glyph_match3 {
     my ($glyph, $pat) = @_;
+    return 1 if $pat eq "-";
     my $codept = hex($glyph->{codept});
     if ($pat =~ /^([uU]\+)?([0-9a-fA-F]+)-([uU]\+)?([0-9a-fA-F]+)/) {
         return ($codept >= hex($2) and $codept <= hex($4));
