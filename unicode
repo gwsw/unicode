@@ -259,10 +259,12 @@ sub print_glyph {
     my ($glyph, $wfile, $fnames, $oneline, $all_print, $no_trunc) = @_;
     my $utf8 = glyph_utf8($glyph);
     my $cw = glyph_width($glyph, $wfile);
+    $cw = 1 if ($cw == 0 and $glyph->{comb});
+    my $dot_circle = chr(0xe2).chr(0x97).chr(0x8c);
     my @fnames = split /,/, $fnames;
     for (my $p = 0; $p < @fnames; ++$p) {
         my ($fname, $xx, $fwidth) = $fnames[$p] =~ /^([^:]+)(:(\d*))?$/;
-        my $val = ($fname eq "char") ? $utf8 :
+        my $val = ($fname eq "char") ? ($glyph->{comb} ? $dot_circle . $utf8 : $utf8) :
                   ($fname eq "utf8") ? bytes($utf8, length($utf8)) :
                   ($fname eq "width") ? $cw :
                   ($fname eq "name") ? "$glyph->{cname}" . (length($glyph->{oldname}) > 0 ? " / $glyph->{oldname}" : "") :
